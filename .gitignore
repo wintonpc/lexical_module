@@ -16,3 +16,4 @@ mkmf.log
 .rspec_status
 .idea
 Gemfile.lock
+/.idea

@@ -43,9 +43,6 @@ module LexicalModuleSpecs
     context "when using the module" do
       using import Geometry
       it "exported methods are available" do
-        MemoryProfiler.report do
-          hyp(3, 4)
-        end.pretty_print
         expect(hyp(3, 4)).to eq 5
         expect(area(3, 4)).to eq 6
       end
