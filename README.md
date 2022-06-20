@@ -1,33 +1,100 @@
-# LexicalModule
+# Lexically scoped modules for Ruby
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/lexical_module`. To experiment with that code, run `bin/console` for an interactive prompt.
+Many languages have module systems where a "module" defines a number of
+functions or other symbols and exports a subset of these symbols. Other modules
+can access the exported symbols by qualifying them with the module name.
+Alternatively, they can use these symbols without qualifying them by "importing"
+the symbols.
 
-TODO: Delete this and the text above, and describe your gem
+Ruby has no such construct; the closest approximation to importing symbols is
+including a module. This has unwanted consequences. Consider the following
+example.
 
-## Installation
+```rb
+module Calculator
+  def add(a, b) = a + b
+  def mult(a, b) = a * b
+  def div(a, b) = a / b
+  private def secret = 42
+end
 
-Install the gem and add to the application's Gemfile by executing:
+class BankAccount
+  include Calculator
+  
+  def deposit(amount)
+    @balance = add(@balance, amount)
+    secret # allowed!
+  end
+end
+```
 
-    $ bundle add lexical_module
+- **Importing affects identity**: In order to use `Calculator`, `BankAccount`
+  must _become_ a `Calculator`
+  - `BankAccount.new.is_a?(Calculator) ⇨ true`
+- **Public methods leak**: `Calculator`'s methods appear as public methods on
+  `BankAccount`
+  - `BankAccount.instance_methods.include?(:add) ⇨ true`
+- **Private methods leak**: `Calculator` cannot hide internal methods, even if
+    they are private; `BankAccount` sees everything
+- **Leaks are transitive**: If `A` includes `B` and `B` includes `C`, `A`
+  unwittingly now has all of `C`'s methods and is itself a `C`!
+- **include vs. extend (or both!)**: yet another thing to keep in mind
+- **Limited scope control**: symbols can be imported only at the module scope,
+  no larger (file) and no smaller (method). Additionally, imported symbols are
+  not available to nested modules; nested modules may need to import the same
+  modules their parent did just a few lines earlier.
+- **Qualified usage is not free**: `Calculator.add` doesn't work without `extend
+  self` or other tricks.
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+This gem permits a new way of using modules that avoids all of the pitfalls
+listed above except the lack of method-scoped import. It is implemented using
+refinements, one of the few lexical constructs ruby has to offer.
 
-    $ gem install lexical_module
+#### Debugging
+Calls to imported methods don't add garbage to the stack.
 
-## Usage
+#### Performance
+A call to an imported method incurs a 100-200 nanosecond penalty due to
+forwarding.
 
-TODO: Write usage instructions here
+## Synopsis
 
-## Development
+### Export
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+```rb
+define_module(:Arithmetic) do
+  def add(a, b); ...; end
+  def mult(a, b); ...; end
+  def div(a, b); ...; end
+  private def secret; ...; end
+end
+```
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+### Qualified usage
 
-## Contributing
+```rb
+Arithmetic.add(1, 2)
+Arithmetic.mult(3, 4)
+Arithmetic.secret # error
+```
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/lexical_module.
+### Import
 
-## License
+```rb
+class Consumer
+  using import Arithmetic
+  
+  def calculate(m, x, b)
+    add(mult(m, x), b)
+  end
+end
+```
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+### Selective import
+```rb
+using import Arithmetic :add, :mult
+```
+
+```rb
+using import Arithmetic except: [:mult, :div]
+```
