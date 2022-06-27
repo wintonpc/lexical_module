@@ -31,11 +31,22 @@ define_module(:Calculus) do
   def attempt_transitive_import = add(1, 2)
 end
 
+define_module(:Nested) do
+  using import Arithmetic
+
+  def outer = add(1, 2)
+
+  define_module(:Inner) do
+    def inner = add(3, 4)
+  end
+end
+
 RSpec.describe "define_module" do
   context "without import" do
     it "only qualified names are available" do
       expect(Arithmetic.add(1, 2)).to eql 3
       expect { add(1, 2) }.to raise_exception NoMethodError
+      expect(Nested::Inner.inner).to eql 7
     end
     it "only public names are available" do
       expect(Trig.cos(0)).to eql 1.0

@@ -139,7 +139,7 @@ class Object
   private def define_module(name, &block)
     methods_mod = Module.new(&block)
     public_mod = Module.new
-    Object.const_set(name, public_mod)
+    (self.is_a?(Module) ? self : Object).const_set(name, public_mod)
     public_mod.const_set(:Methods, methods_mod)
     public_mod.instance_exec { export methods_mod }
     public_mod
